@@ -1,0 +1,75 @@
+{
+  "entities": {
+    "Prompt": {
+      "title": "Prompt",
+      "description": "A high-quality AI prompt",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the prompt" },
+        "content": { "type": "string", "description": "The actual prompt text" },
+        "modelId": { "type": "string", "description": "Reference to the model" },
+        "category": { "type": "string", "enum": ["legal", "illegal"], "description": "Type of prompt" },
+        "likes": { "type": "number", "description": "Number of likes" },
+        "copyCount": { "type": "number", "description": "Number of times copied" },
+        "downloadCount": { "type": "number", "description": "Number of times downloaded" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "description": "UID of the creator" }
+      },
+      "required": ["name", "content", "modelId", "category", "createdAt"]
+    },
+    "Model": {
+      "title": "Model",
+      "description": "AI Model (e.g., ChatGPT, Claude)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Model name" }
+      },
+      "required": ["name"]
+    },
+    "Suggestion": {
+      "title": "Suggestion",
+      "description": "User suggested prompt",
+      "type": "object",
+      "properties": {
+        "promptName": { "type": "string" },
+        "category": { "type": "string", "enum": ["legal", "illegal"] },
+        "description": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["promptName", "category", "description", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Customer service message",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "text": { "type": "string" },
+        "sender": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "text", "sender", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/prompts/{promptId}": {
+      "schema": "Prompt",
+      "description": "Main collection for prompts"
+    },
+    "/models/{modelId}": {
+      "schema": "Model",
+      "description": "Supported AI models"
+    },
+    "/suggestions/{suggestionId}": {
+      "schema": "Suggestion",
+      "description": "Prompt suggestions from users"
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "In-app support messages"
+    }
+  }
+}

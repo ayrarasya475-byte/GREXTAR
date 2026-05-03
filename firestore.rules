@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reuseable helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn();
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'ayrarasya475@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 1. Prompts
+    match /prompts/{promptId} {
+      function isValidPrompt(data) {
+        return data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+               data.content is string && data.content.size() > 0 && data.content.size() <= 5000 &&
+               data.modelId is string && isValidId(data.modelId) &&
+               data.category in ['legal', 'illegal'] &&
+               data.likes is number &&
+               data.copyCount is number &&
+               data.downloadCount is number &&
+               data.createdAt is timestamp;
+      }
+
+      allow read: if true;
+      
+      allow create: if isAdmin() && 
+                      isValidId(promptId) && 
+                      isValidPrompt(incoming()) && 
+                      incoming().createdAt == request.time &&
+                      incoming().likes == 0 &&
+                      incoming().copyCount == 0 &&
+                      incoming().downloadCount == 0;
+
+      allow update: if (
+        (isAdmin() && isValidPrompt(incoming())) ||
+        (isSignedIn() && isValidPrompt(incoming()) && (
+          // Action: Like
+          (incoming().diff(existing()).affectedKeys().hasOnly(['likes']) && incoming().likes == existing().likes + 1) ||
+          // Action: Copy
+          (incoming().diff(existing()).affectedKeys().hasOnly(['copyCount']) && incoming().copyCount == existing().copyCount + 1) ||
+          // Action: Download
+          (incoming().diff(existing()).affectedKeys().hasOnly(['downloadCount']) && incoming().downloadCount == existing().downloadCount + 1)
+        ))
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // 2. Models
+    match /models/{modelId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(modelId) && incoming().name is string && incoming().name.size() > 0;
+    }
+
+    // 3. Suggestions
+    match /suggestions/{suggestionId} {
+      function isValidSuggestion(data) {
+        return data.promptName is string && data.promptName.size() > 0 &&
+               data.category in ['legal', 'illegal'] &&
+               data.description is string &&
+               data.status in ['pending', 'approved', 'rejected'] &&
+               data.createdAt is timestamp;
+      }
+
+      allow create: if isSignedIn() && isValidSuggestion(incoming()) && incoming().status == 'pending' && incoming().createdAt == request.time;
+      allow read: if isAdmin() || (isSignedIn() && existing().userEmail == request.auth.token.email);
+      allow update: if isAdmin() && isValidSuggestion(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 4. Messages (Customer Service)
+    match /messages/{messageId} {
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && incoming().timestamp == request.time;
+      allow read: if isAdmin() || (isSignedIn() && (resource == null || existing().userId == request.auth.uid));
+      allow delete: if isAdmin();
+    }
+
+    // 5. App Config (AI System Prompt etc)
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
